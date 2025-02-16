@@ -32,11 +32,18 @@ class _WeekCalendarState extends State<WeekCalendar> {
   late DateTime _selectedWeekStart;
   static const startHour = 6;
   static const endHour = 24;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _selectedWeekStart = _getWeekStart(widget.initialDate);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   DateTime _getWeekStart(DateTime date) {
@@ -58,7 +65,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
   List<DateTime> _getWeekDays() {
     return List.generate(
       7,
-      (index) => _selectedWeekStart.add(Duration(days: index)),
+          (index) => _selectedWeekStart.add(Duration(days: index)),
     );
   }
 
@@ -84,28 +91,30 @@ class _WeekCalendarState extends State<WeekCalendar> {
         ),
         // Hour cells
         Expanded(
-          child: ListView.builder(
-            itemCount: endHour - startHour,
-            itemBuilder: (context, index) {
-              final hour = startHour + index;
-              return GestureDetector(
-                onTap: () => widget.onHourSelected?.call(hour),
-                child: Container(
-                  height: 60,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFF1a4966)),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${hour.toString().padLeft(2, '0')}:00',
-                      style: const TextStyle(
-                        color: Color(0xFF1a4966),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: Column(
+              children: List.generate(endHour - startHour, (index) {
+                final hour = startHour + index;
+                return GestureDetector(
+                  onTap: () => widget.onHourSelected?.call(hour),
+                  child: Container(
+                    height: 60,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFF1a4966)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${hour.toString().padLeft(2, '0')}:00',
+                        style: const TextStyle(
+                          color: Color(0xFF1a4966),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              }),
+            ),
           ),
         ),
       ],
@@ -113,10 +122,10 @@ class _WeekCalendarState extends State<WeekCalendar> {
   }
 
   Widget _buildDayColumn(DateTime day) {
-    final dayEvents = widget.events.where((event) => 
-      event.date.year == day.year && 
-      event.date.month == day.month && 
-      event.date.day == day.day
+    final dayEvents = widget.events.where((event) =>
+    event.date.year == day.year &&
+        event.date.month == day.month &&
+        event.date.day == day.day
     ).toList();
 
     return Column(
@@ -142,7 +151,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
         // Hour grid with events
         Expanded(
           child: SingleChildScrollView(
-            controller: ScrollController(), // Add a shared scroll controller
+            controller: _scrollController,
             child: Stack(
               children: [
                 // Hour grid
@@ -254,7 +263,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
           if (height > 40)
             Text(
               '${event.startHour.toString().padLeft(2, '0')}:00 - '
-              '${event.endHour.toString().padLeft(2, '0')}:00',
+                  '${event.endHour.toString().padLeft(2, '0')}:00',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 10,
@@ -276,7 +285,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
   @override
   Widget build(BuildContext context) {
     final weekDays = _getWeekDays();
-    
+
     return Column(
       children: [
         // Navigation bar
@@ -292,7 +301,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
               ),
               Text(
                 '${DateFormat('MMM d').format(_selectedWeekStart)} - '
-                '${DateFormat('MMM d').format(_selectedWeekStart.add(const Duration(days: 6)))}',
+                    '${DateFormat('MMM d').format(_selectedWeekStart.add(const Duration(days: 6)))}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
