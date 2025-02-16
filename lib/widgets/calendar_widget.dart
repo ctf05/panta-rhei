@@ -69,154 +69,6 @@ class _WeekCalendarState extends State<WeekCalendar> {
     );
   }
 
-  Widget _buildTimeColumn() {
-    return Column(
-      children: [
-        // Header spacer
-        Container(
-          height: 60,
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFF1a4966)),
-            color: const Color(0xFFec4755),
-          ),
-          child: const Center(
-            child: Text(
-              'Time',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        // Hour cells
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: Column(
-              children: List.generate(endHour - startHour, (index) {
-                final hour = startHour + index;
-                return GestureDetector(
-                  onTap: () => widget.onHourSelected?.call(hour),
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFF1a4966)),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${hour.toString().padLeft(2, '0')}:00',
-                        style: const TextStyle(
-                          color: Color(0xFF1a4966),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDayColumn(DateTime day) {
-    final dayEvents = widget.events.where((event) =>
-    event.date.year == day.year &&
-        event.date.month == day.month &&
-        event.date.day == day.day
-    ).toList();
-
-    return Column(
-      children: [
-        // Day header
-        Container(
-          height: 60,
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFF1a4966)),
-            color: const Color(0xFFec4755),
-          ),
-          child: Center(
-            child: Text(
-              DateFormat('E\nMMM d').format(day),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        // Hour grid with events
-        Expanded(
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: Stack(
-              children: [
-                // Hour grid
-                Column(
-                  children: List.generate(endHour - startHour, (index) {
-                    final hour = startHour + index;
-                    return GestureDetector(
-                      onTap: () {
-                        if (widget.isEditable) {
-                          widget.onDaySelected?.call(day);
-                        }
-                      },
-                      child: Container(
-                        height: 60,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFF1a4966)),
-                          color: day.isBefore(DateTime.now()) && !widget.isEditable
-                              ? Colors.grey.withOpacity(0.1)
-                              : null,
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-                // Events
-                ...dayEvents.map((event) {
-                  final top = (event.startHour - startHour) * 60.0;
-                  final height = (event.endHour - event.startHour) * 60.0;
-
-                  return Positioned(
-                    top: top,
-                    left: 2,
-                    right: 2,
-                    child: widget.allowDragDrop && widget.isEditable
-                        ? Draggable<EventInstance>(
-                      data: event,
-                      feedback: Material(
-                        elevation: 4,
-                        child: _buildEventCard(event, height),
-                      ),
-                      childWhenDragging: Container(
-                        height: height,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.grey.withOpacity(0.5),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: _buildEventCard(event, height),
-                    )
-                        : GestureDetector(
-                      onTap: () => widget.onEventTapped?.call(event),
-                      child: _buildEventCard(event, height),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildEventCard(EventInstance event, double height) {
     Color eventColor;
     switch (event.eventId.split('_')[0]) {
@@ -317,31 +169,164 @@ class _WeekCalendarState extends State<WeekCalendar> {
         ),
         // Calendar grid
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
-              // Time column
-              SizedBox(
-                width: 80,
-                child: _buildTimeColumn(),
-              ),
-              // Day columns
-              Expanded(
-                child: Row(
-                  children: weekDays.map((day) {
-                    return Expanded(
-                      child: DragTarget<EventInstance>(
-                        onWillAccept: (data) => widget.isEditable && widget.allowDragDrop,
-                        onAccept: (eventInstance) {
-                          final hour = ((MediaQuery.of(context).size.height - 60) / 2 / 60).floor() + startHour;
-                          widget.onEventMoved?.call(eventInstance, day, hour);
-                        },
-                        builder: (context, candidateData, rejectedData) {
-                          return _buildDayColumn(day);
-                        },
+              // Headers row
+              Row(
+                children: [
+                  // Time header
+                  SizedBox(
+                    width: 80,
+                    child: Container(
+                      height: 60,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFF1a4966)),
+                        color: const Color(0xFFec4755),
                       ),
-                    );
-                  }).toList(),
+                      child: const Center(
+                        child: Text(
+                          'Time',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Day headers
+                  ...weekDays.map((day) => Expanded(
+                    child: Container(
+                      height: 60,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFF1a4966)),
+                        color: const Color(0xFFec4755),
+                      ),
+                      child: Center(
+                        child: Text(
+                          DateFormat('E\nMMM d').format(day),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )),
+                ],
+              ),
+              // Scrollable content
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Time column
+                      SizedBox(
+                        width: 80,
+                        child: Column(
+                          children: List.generate(endHour - startHour, (index) {
+                            final hour = startHour + index;
+                            return Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: const Color(0xFF1a4966)),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${hour.toString().padLeft(2, '0')}:00',
+                                  style: const TextStyle(
+                                    color: Color(0xFF1a4966),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      // Day columns with events
+                      ...weekDays.map((day) {
+                        final dayEvents = widget.events.where((event) =>
+                        event.date.year == day.year &&
+                            event.date.month == day.month &&
+                            event.date.day == day.day
+                        ).toList();
+
+                        return Expanded(
+                          child: DragTarget<EventInstance>(
+                            onWillAccept: (data) => widget.isEditable && widget.allowDragDrop,
+                            onAccept: (eventInstance) {
+                              final hour = ((MediaQuery.of(context).size.height - 60) / 2 / 60).floor() + startHour;
+                              widget.onEventMoved?.call(eventInstance, day, hour);
+                            },
+                            builder: (context, candidateData, rejectedData) {
+                              return Stack(
+                                children: [
+                                  // Hour grid
+                                  Column(
+                                    children: List.generate(endHour - startHour, (index) {
+                                      final hour = startHour + index;
+                                      return GestureDetector(
+                                        onTap: () {
+                                          if (widget.isEditable) {
+                                            widget.onDaySelected?.call(day);
+                                          }
+                                        },
+                                        child: Container(
+                                          height: 60,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: const Color(0xFF1a4966)),
+                                            color: day.isBefore(DateTime.now()) && !widget.isEditable
+                                                ? Colors.grey.withOpacity(0.1)
+                                                : null,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                  // Events
+                                  ...dayEvents.map((event) {
+                                    final top = (event.startHour - startHour) * 60.0;
+                                    final height = (event.endHour - event.startHour) * 60.0;
+
+                                    return Positioned(
+                                      top: top,
+                                      left: 2,
+                                      right: 2,
+                                      child: widget.allowDragDrop && widget.isEditable
+                                          ? Draggable<EventInstance>(
+                                        data: event,
+                                        feedback: Material(
+                                          elevation: 4,
+                                          child: _buildEventCard(event, height),
+                                        ),
+                                        childWhenDragging: Container(
+                                          height: height,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: Colors.grey.withOpacity(0.5),
+                                            ),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                        ),
+                                        child: _buildEventCard(event, height),
+                                      )
+                                          : GestureDetector(
+                                        onTap: () => widget.onEventTapped?.call(event),
+                                        child: _buildEventCard(event, height),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              );
+                            },
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -141,12 +141,30 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       builder: (_) => const EventsTab(),
     ),
   ];
-  final List<TabData> _personTabs = [];
+  List<TabData> _personTabs = [];
 
   @override
   void initState() {
     super.initState();
     _updateTabController();
+    // Load people when screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPeople();
+    });
+  }
+
+  void _loadPeople() {
+    final people = context.read<AppState>().people;
+    if (people != null) {
+      setState(() {
+        _personTabs = people.map((person) => TabData(
+          label: person.name,
+          builder: (_) => PersonTab(personId: person.id),
+          canClose: true,
+        )).toList();
+        _updateTabController();
+      });
+    }
   }
 
   @override
@@ -162,14 +180,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _addPersonTab() {
+  void _addPersonTab() async {
     final person = Person(
       name: 'New Person ${_personTabs.length + 1}',
       availability: [],
     );
 
-    // Create the person in Firebase
-    context.read<AppState>().createPerson(person).then((_) {
+    try {
+      await context.read<AppState>().createPerson(person);
       setState(() {
         _personTabs.add(
           TabData(
@@ -179,8 +197,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           ),
         );
         _updateTabController();
+        _tabController.animateTo(_tabController.length - 1);  // Switch to new tab
       });
-    });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating person: $e')),
+      );
+    }
   }
 
   void _closeTab(int index) {

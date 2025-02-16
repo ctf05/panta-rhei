@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/calendar_models.dart';
 import '../models/person_model.dart';
 import '../state/app_state.dart';
 import '../widgets/calendar_widget.dart';
+import '../widgets/time_grid.dart';
 
 class PersonTab extends StatefulWidget {
   final String personId;
@@ -21,6 +23,13 @@ class _PersonTabState extends State<PersonTab> {
   final TextEditingController _nameController = TextEditingController();
   bool _isEditingName = false;
   bool _isLoading = false;
+  late DateTime selectedWeek;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedWeek = DateTime.now();
+  }
 
   @override
   void dispose() {
@@ -28,12 +37,25 @@ class _PersonTabState extends State<PersonTab> {
     super.dispose();
   }
 
-  void _toggleTimeSlot(Person person, DateTime date, int startHour, int endHour) {
+  void _previousWeek() {
+    setState(() {
+      selectedWeek = selectedWeek.subtract(const Duration(days: 7));
+    });
+  }
+
+  void _nextWeek() {
+    setState(() {
+      selectedWeek = selectedWeek.add(const Duration(days: 7));
+    });
+  }
+
+  void _toggleTimeSlot(
+      Person person, DateTime date, int startHour, int endHour) {
     final appState = context.read<AppState>();
 
     // Check if the time slot already exists
     final existingSlot = person.availability.any((slot) =>
-    slot.date.year == date.year &&
+        slot.date.year == date.year &&
         slot.date.month == date.month &&
         slot.date.day == date.day &&
         slot.startHour == startHour &&
@@ -44,7 +66,7 @@ class _PersonTabState extends State<PersonTab> {
     if (existingSlot) {
       // Remove the slot
       newAvailability.removeWhere((slot) =>
-      slot.date.year == date.year &&
+          slot.date.year == date.year &&
           slot.date.month == date.month &&
           slot.date.day == date.day &&
           slot.startHour == startHour &&
@@ -89,7 +111,8 @@ class _PersonTabState extends State<PersonTab> {
                             labelText: 'Start Time',
                           ),
                           value: startHour,
-                          items: List.generate(18, (index) => index + 6).map((hour) {
+                          items: List.generate(18, (index) => index + 6)
+                              .map((hour) {
                             return DropdownMenuItem(
                               value: hour,
                               child: Text('$hour:00'),
@@ -113,7 +136,8 @@ class _PersonTabState extends State<PersonTab> {
                             labelText: 'End Time',
                           ),
                           value: endHour,
-                          items: List.generate(18, (index) => index + 6).map((hour) {
+                          items: List.generate(18, (index) => index + 6)
+                              .map((hour) {
                             return DropdownMenuItem(
                               value: hour,
                               child: Text('$hour:00'),
@@ -156,7 +180,7 @@ class _PersonTabState extends State<PersonTab> {
         title: const Text('Apply Weekly Schedule'),
         content: const Text(
           'This will apply the current week\'s schedule to all future weeks. '
-              'Any existing schedule will be overwritten. Are you sure?',
+          'Any existing schedule will be overwritten. Are you sure?',
         ),
         actions: [
           TextButton(
@@ -177,12 +201,13 @@ class _PersonTabState extends State<PersonTab> {
 
     try {
       // Get the current week's schedule
-      final weekStart = context.read<AppState>().selectedWeek
-          .subtract(Duration(days: context.read<AppState>().selectedWeek.weekday - 1));
+      final weekStart =
+          selectedWeek.subtract(Duration(days: selectedWeek.weekday - 1));
 
       final currentWeekSlots = person.availability
-          .where((slot) => slot.date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-          slot.date.isBefore(weekStart.add(const Duration(days: 7))))
+          .where((slot) =>
+              slot.date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
+              slot.date.isBefore(weekStart.add(const Duration(days: 7))))
           .toList();
 
       // Create slots for future weeks
@@ -287,12 +312,14 @@ class _PersonTabState extends State<PersonTab> {
                             Expanded(
                               child: Text(
                                 person.name,
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style:
+                                    Theme.of(context).textTheme.headlineSmall,
                               ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.edit),
-                              onPressed: () => setState(() => _isEditingName = true),
+                              onPressed: () =>
+                                  setState(() => _isEditingName = true),
                             ),
                           ],
                         ],
@@ -324,20 +351,147 @@ class _PersonTabState extends State<PersonTab> {
                         ),
                         SizedBox(
                           height: 600,
-                          child: WeekCalendar(
-                            initialDate: appState.selectedWeek,
-                            events: person.availability.map((slot) =>
-                                EventInstance(
-                                  eventId: 'availability',
-                                  date: slot.date,
-                                  startHour: slot.startHour,
-                                  endHour: slot.endHour,
-                                  assignedPeople: [],
+                          child: Column(
+                            children: [
+                              // Navigation bar
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                color: Theme.of(context).colorScheme.primary,
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_left,
+                                          color: Colors.white),
+                                      onPressed: _previousWeek,
+                                    ),
+                                    Text(
+                                      '${DateFormat('MMM d').format(selectedWeek)} - '
+                                      '${DateFormat('MMM d').format(selectedWeek.add(const Duration(days: 6)))}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_right,
+                                          color: Colors.white),
+                                      onPressed: _nextWeek,
+                                    ),
+                                  ],
                                 ),
-                            ).toList(),
-                            isEditable: true,
-                            allowDragDrop: false,
-                            onDaySelected: (date) => _onDaySelected(person, date),
+                              ),
+                              // Calendar grid
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  controller: ScrollController(),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Time column
+                                      SizedBox(
+                                        width: 80,
+                                        child: Column(
+                                          children: [
+                                            // Header spacer
+                                            Container(
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                border: Border.all(
+                                                    color: const Color(
+                                                        0xFF1a4966)),
+                                                color: const Color(0xFFec4755),
+                                              ),
+                                              child: const Center(
+                                                child: Text(
+                                                  'Time',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            // Hour labels
+                                            ...List.generate(24 - 6, (index) {
+                                              final hour = 6 + index;
+                                              return Container(
+                                                height: 60,
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(
+                                                      color: const Color(
+                                                          0xFF1a4966)),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    '${hour.toString().padLeft(2, '0')}:00',
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF1a4966),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }),
+                                          ],
+                                        ),
+                                      ),
+                                      // Day columns with TimeGrid
+                                      Expanded(
+                                        child: Row(
+                                          children: List.generate(7, (index) {
+                                            final day = selectedWeek
+                                                .add(Duration(days: index));
+                                            return Expanded(
+                                              child: Column(
+                                                children: [
+                                                  // Day header
+                                                  Container(
+                                                    height: 60,
+                                                    decoration: BoxDecoration(
+                                                      border: Border.all(
+                                                          color: const Color(
+                                                              0xFF1a4966)),
+                                                      color: const Color(
+                                                          0xFFec4755),
+                                                    ),
+                                                    child: Center(
+                                                      child: Text(
+                                                        DateFormat('E\nMMM d')
+                                                            .format(day),
+                                                        textAlign:
+                                                            TextAlign.center,
+                                                        style: const TextStyle(
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  // TimeGrid for selection
+                                                  TimeGrid(
+                                                    date: day,
+                                                    selectedSlots: person.availability,
+                                                    onSlotSelected: (date, startHour, endHour) =>
+                                                        _toggleTimeSlot(person, date, startHour, endHour),
+                                                    onSlotRemoved: (date, startHour, endHour) =>
+                                                        _toggleTimeSlot(person, date, startHour, endHour),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
