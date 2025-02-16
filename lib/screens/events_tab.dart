@@ -196,7 +196,7 @@ class _EventsTabState extends State<EventsTab> {
                   );
                   return Chip(
                     label: Text(person.name),
-                    backgroundColor: Theme.of(context).colorScheme.tertiaryTint,
+                    backgroundColor: Theme.of(context).colorScheme.surface,
                   );
                 }).toList(),
               ),

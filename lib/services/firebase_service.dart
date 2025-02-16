@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:panta_rhei/services/scheduling-service.dart';
 import '../models/calendar_models.dart';
+import '../models/person_model.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
