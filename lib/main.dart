@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+import 'models/person_model.dart';
 import 'state/app_state.dart';
 import 'screens/main_calendar_tab.dart';
 import 'screens/events_tab.dart';
@@ -27,11 +28,11 @@ class PantaRheiApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.light(
-            primary: const Color(0xFFec4755),
-            secondary: const Color(0xFFa12c34),
-            tertiary: const Color(0xFFffba75),
-            background: const Color(0xFFfef8e0),
-            surface: const Color(0xFFfef8e0),
+            primary: const Color(0xFFa12c34),      // Changed to secondary color for less intensity
+            secondary: const Color(0xFFec4755),     // Original primary color
+            tertiary: const Color(0xFFffba75),      // Kept tertiary
+            background: const Color(0xFFfef8e0),    // Kept background
+            surface: const Color(0xFFfef8e0),       // Kept surface
             onPrimary: Colors.white,
             onSecondary: Colors.white,
             onTertiary: Colors.black,
@@ -162,16 +163,23 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   void _addPersonTab() {
-    final personId = DateTime.now().millisecondsSinceEpoch.toString();
-    setState(() {
-      _personTabs.add(
-        TabData(
-          label: 'Person ${_personTabs.length + 1}',
-          builder: (_) => PersonTab(personId: personId),
-          canClose: true,
-        ),
-      );
-      _updateTabController();
+    final person = Person(
+      name: 'New Person ${_personTabs.length + 1}',
+      availability: [],
+    );
+
+    // Create the person in Firebase
+    context.read<AppState>().createPerson(person).then((_) {
+      setState(() {
+        _personTabs.add(
+          TabData(
+            label: person.name,
+            builder: (_) => PersonTab(personId: person.id),
+            canClose: true,
+          ),
+        );
+        _updateTabController();
+      });
     });
   }
 

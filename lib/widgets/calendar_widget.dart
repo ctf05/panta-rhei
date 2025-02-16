@@ -141,65 +141,67 @@ class _WeekCalendarState extends State<WeekCalendar> {
         ),
         // Hour grid with events
         Expanded(
-          child: Stack(
-            children: [
-              // Hour grid
-              ListView.builder(
-                itemCount: endHour - startHour,
-                itemBuilder: (context, index) {
-                  final hour = startHour + index;
-                  return GestureDetector(
-                    onTap: () {
-                      if (widget.isEditable) {
-                        widget.onDaySelected?.call(day);
-                      }
-                    },
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFF1a4966)),
-                        color: day.isBefore(DateTime.now()) && !widget.isEditable
-                            ? Colors.grey.withOpacity(0.1)
-                            : null,
+          child: SingleChildScrollView(
+            controller: ScrollController(), // Add a shared scroll controller
+            child: Stack(
+              children: [
+                // Hour grid
+                Column(
+                  children: List.generate(endHour - startHour, (index) {
+                    final hour = startHour + index;
+                    return GestureDetector(
+                      onTap: () {
+                        if (widget.isEditable) {
+                          widget.onDaySelected?.call(day);
+                        }
+                      },
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF1a4966)),
+                          color: day.isBefore(DateTime.now()) && !widget.isEditable
+                              ? Colors.grey.withOpacity(0.1)
+                              : null,
+                        ),
                       ),
+                    );
+                  }),
+                ),
+                // Events
+                ...dayEvents.map((event) {
+                  final top = (event.startHour - startHour) * 60.0;
+                  final height = (event.endHour - event.startHour) * 60.0;
+
+                  return Positioned(
+                    top: top,
+                    left: 2,
+                    right: 2,
+                    child: widget.allowDragDrop && widget.isEditable
+                        ? Draggable<EventInstance>(
+                      data: event,
+                      feedback: Material(
+                        elevation: 4,
+                        child: _buildEventCard(event, height),
+                      ),
+                      childWhenDragging: Container(
+                        height: height,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.5),
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      child: _buildEventCard(event, height),
+                    )
+                        : GestureDetector(
+                      onTap: () => widget.onEventTapped?.call(event),
+                      child: _buildEventCard(event, height),
                     ),
                   );
-                },
-              ),
-              // Events
-              ...dayEvents.map((event) {
-                final top = (event.startHour - startHour) * 60.0;
-                final height = (event.endHour - event.startHour) * 60.0;
-
-                return Positioned(
-                  top: top,
-                  left: 2,
-                  right: 2,
-                  child: widget.allowDragDrop && widget.isEditable
-                      ? Draggable<EventInstance>(
-                          data: event,
-                          feedback: Material(
-                            elevation: 4,
-                            child: _buildEventCard(event, height),
-                          ),
-                          childWhenDragging: Container(
-                            height: height,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.grey.withOpacity(0.5),
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          child: _buildEventCard(event, height),
-                        )
-                      : GestureDetector(
-                          onTap: () => widget.onEventTapped?.call(event),
-                          child: _buildEventCard(event, height),
-                        ),
-                );
-              }),
-            ],
+                }),
+              ],
+            ),
           ),
         ),
       ],

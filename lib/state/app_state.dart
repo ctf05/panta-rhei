@@ -52,6 +52,10 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  Future<void> createPerson(Person person) async {
+    await _firebaseService.createPerson(person);
+  }
+
   Future<void> autoCalculateCalendar() async {
     final weekStart = _selectedWeek.subtract(Duration(days: _selectedWeek.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
