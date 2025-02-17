@@ -233,12 +233,54 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _closeTab(int index) {
+  void _closeTab(int index) async {
     if (index < _fixedTabs.length) return;
-    setState(() {
-      _personTabs.removeAt(index - _fixedTabs.length);
-      _updateTabController();
-    });
+
+    final personTab = _personTabs[index - _fixedTabs.length];
+    final personId = (personTab.builder(context) as PersonTab).personId;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Person'),
+        content: Text('Are you sure you want to delete ${personTab.label}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // Delete from database
+        await context.read<AppState>().deletePerson(personId);
+
+        // Remove tab
+        setState(() {
+          _personTabs.removeAt(index - _fixedTabs.length);
+          _updateTabController();
+        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting person: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

@@ -52,6 +52,10 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  Future<void> deletePerson(String personId) async {
+    await _firebaseService.deletePerson(personId);
+  }
+
   Future<void> createPerson(Person person) async {
     await _firebaseService.createPerson(person);
   }

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/calendar_models.dart';
 
@@ -21,11 +22,12 @@ class TimeGrid extends StatefulWidget {
 
 class _TimeGridState extends State<TimeGrid> {
   bool _isDragging = false;
-  bool _isRemoving = false;  // New state for removal mode
+  bool _isRemoving = false;
   int? _dragStartHour;
   int? _dragEndHour;
   static const startHour = 6;
   static const endHour = 24;
+  bool _initialSelectionState = false;
 
   bool _isSlotSelected(int hour) {
     return widget.selectedSlots.any((slot) =>
@@ -37,9 +39,10 @@ class _TimeGridState extends State<TimeGrid> {
   }
 
   void _handleDragStart(int hour, bool isSelected) {
+    _initialSelectionState = isSelected;
     setState(() {
       _isDragging = true;
-      _isRemoving = isSelected;  // If starting on a selected slot, we're removing
+      _isRemoving = isSelected;
       _dragStartHour = hour;
       _dragEndHour = hour;
     });
@@ -83,8 +86,8 @@ class _TimeGridState extends State<TimeGrid> {
         final hour = startHour + index;
         final isSelected = _isSlotSelected(hour);
         final isInDragRange = _isDragging && _dragStartHour != null && _dragEndHour != null &&
-            ((hour >= _dragStartHour! && hour <= _dragEndHour!) ||
-                (hour >= _dragEndHour! && hour <= _dragStartHour!));
+            ((hour >= min(_dragStartHour!, _dragEndHour!) &&
+                hour <= max(_dragStartHour!, _dragEndHour!)));
 
         Color? backgroundColor;
         if (isInDragRange) {
@@ -97,11 +100,18 @@ class _TimeGridState extends State<TimeGrid> {
 
         return GestureDetector(
           onTapDown: (_) => _handleDragStart(hour, isSelected),
-          onVerticalDragStart: (_) => _handleDragStart(hour, isSelected),
+          onVerticalDragStart: (details) {
+            final RenderBox box = context.findRenderObject() as RenderBox;
+            final localPosition = box.globalToLocal(details.globalPosition);
+            final currentHour = startHour + (localPosition.dy ~/ 30);
+            if (currentHour >= startHour && currentHour < endHour) {
+              _handleDragStart(currentHour, _isSlotSelected(currentHour));
+            }
+          },
           onVerticalDragUpdate: (details) {
             final RenderBox box = context.findRenderObject() as RenderBox;
             final localPosition = box.globalToLocal(details.globalPosition);
-            final newHour = startHour + (localPosition.dy ~/ 60);
+            final newHour = startHour + (localPosition.dy ~/ 30);
             if (newHour >= startHour && newHour < endHour) {
               _handleDragUpdate(newHour);
             }
@@ -109,7 +119,7 @@ class _TimeGridState extends State<TimeGrid> {
           onVerticalDragEnd: (_) => _handleDragEnd(),
           onTapUp: (_) => _handleDragEnd(),
           child: Container(
-            height: 60,
+            height: 32,
             decoration: BoxDecoration(
               border: Border.all(color: const Color(0xFF1a4966)),
               color: backgroundColor,
