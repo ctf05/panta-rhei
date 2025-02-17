@@ -121,7 +121,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
                 fontSize: 10,
               ),
             ),
-          if (height > 60 && event.assignedPeople.isNotEmpty)
+          if (height > 32 && event.assignedPeople.isNotEmpty)
             Text(
               '${event.assignedPeople.length} attendees',
               style: const TextStyle(
@@ -230,7 +230,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
                           children: List.generate(endHour - startHour, (index) {
                             final hour = startHour + index;
                             return Container(
-                              height: 60,
+                              height: 32,
                               decoration: BoxDecoration(
                                 border: Border.all(color: const Color(0xFF1a4966)),
                               ),
@@ -275,7 +275,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
                                           }
                                         },
                                         child: Container(
-                                          height: 60,
+                                          height: 32,
                                           decoration: BoxDecoration(
                                             border: Border.all(color: const Color(0xFF1a4966)),
                                             color: day.isBefore(DateTime.now()) && !widget.isEditable

@@ -147,10 +147,43 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _updateTabController();
-    // Load people when screen initializes
+
+    // Listen to people changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AppState>().addListener(_onAppStateChanged);
       _loadPeople();
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<AppState>().removeListener(_onAppStateChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _onAppStateChanged() {
+    final people = context.read<AppState>().people;
+    if (people != null) {
+      final currentIds = _personTabs.map((tab) {
+        final personTab = tab.builder(context) as PersonTab;
+        return personTab.personId;
+      }).toSet();
+
+      final newTabs = people.where((person) => !currentIds.contains(person.id))
+          .map((person) => TabData(
+        label: person.name,
+        builder: (_) => PersonTab(personId: person.id),
+        canClose: true,
+      )).toList();
+
+      if (newTabs.isNotEmpty) {
+        setState(() {
+          _personTabs.addAll(newTabs);
+          _updateTabController();
+        });
+      }
+    }
   }
 
   void _loadPeople() {
@@ -165,12 +198,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         _updateTabController();
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   void _updateTabController() {
