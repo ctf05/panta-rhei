@@ -63,7 +63,19 @@ class AppState extends ChangeNotifier {
   Future<void> autoCalculateCalendar() async {
     final weekStart = _selectedWeek.subtract(Duration(days: _selectedWeek.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
-    await _firebaseService.autoCalculateCalendar(weekStart, weekEnd);
+
+    // Get existing instances first
+    final existingInstances = await _firebaseService.streamEventInstances(
+        weekStart,
+        weekEnd
+    ).first;
+
+    // Auto calculate with existing instances
+    await _firebaseService.autoCalculateCalendar(
+      weekStart,
+      weekEnd,
+      existingInstances: existingInstances,
+    );
   }
 
   Future<void> moveEventInstance(

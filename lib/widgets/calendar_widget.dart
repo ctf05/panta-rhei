@@ -33,6 +33,8 @@ class _WeekCalendarState extends State<WeekCalendar> {
   static const startHour = 6;
   static const endHour = 24;
   final ScrollController _scrollController = ScrollController();
+  final double _cellHeight = 60.0;
+  final double _headerHeight = 60.0;
 
   @override
   void initState() {
@@ -69,7 +71,10 @@ class _WeekCalendarState extends State<WeekCalendar> {
     );
   }
 
-  Widget _buildEventCard(EventInstance event, double height) {
+  Widget _buildEventCard(EventInstance event) {
+    final duration = event.endHour - event.startHour;
+    final height = duration * _cellHeight;
+
     Color eventColor;
     switch (event.eventId.split('_')[0]) {
       case 'event':
@@ -134,9 +139,83 @@ class _WeekCalendarState extends State<WeekCalendar> {
     );
   }
 
+  int _calculateHourFromPosition(double dy) {
+    final hourIndex = ((dy - _headerHeight) / _cellHeight).floor();
+    return (hourIndex + startHour).clamp(startHour, endHour - 1);
+  }
+
+  Future<void> _handleEventMoved(
+      BuildContext context,
+      EventInstance instance,
+      DateTime newDate,
+      double dropY,
+      ) async {
+    // Get the target hour from the drop position
+    final newHour = _calculateHourFromPosition(dropY);
+
+    // Check if the new date is in the past
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final eventDate = DateTime(newDate.year, newDate.month, newDate.day);
+
+    if (eventDate.isBefore(today)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot move events to past dates'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Calculate event duration
+    final duration = instance.endHour - instance.startHour;
+    final endHour = newHour + duration;
+
+    // Validate end hour doesn't exceed day boundary
+    if (endHour > endHour) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event would extend past end of day'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Move Event?'),
+        content: Text(
+          'Are you sure you want to move this event to ${newDate.month}/${newDate.day} at '
+              '${newHour.toString().padLeft(2, '0')}:00?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Move'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // Move the event
+    widget.onEventMoved?.call(instance, newDate, newHour);
+  }
+
   @override
   Widget build(BuildContext context) {
     final weekDays = _getWeekDays();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
     return Column(
       children: [
@@ -172,49 +251,52 @@ class _WeekCalendarState extends State<WeekCalendar> {
           child: Column(
             children: [
               // Headers row
-              Row(
-                children: [
-                  // Time header
-                  SizedBox(
-                    width: 80,
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFF1a4966)),
-                        color: const Color(0xFFec4755),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Time',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+              SizedBox(
+                height: _headerHeight,
+                child: Row(
+                  children: [
+                    // Time header
+                    SizedBox(
+                      width: 80,
+                      child: Container(
+                        height: _headerHeight,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF1a4966)),
+                          color: const Color(0xFFec4755),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Time',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  // Day headers
-                  ...weekDays.map((day) => Expanded(
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFF1a4966)),
-                        color: const Color(0xFFec4755),
-                      ),
-                      child: Center(
-                        child: Text(
-                          DateFormat('E\nMMM d').format(day),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                    // Day headers
+                    ...weekDays.map((day) => Expanded(
+                      child: Container(
+                        height: _headerHeight,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFF1a4966)),
+                          color: const Color(0xFFec4755),
+                        ),
+                        child: Center(
+                          child: Text(
+                            DateFormat('E\nMMM d').format(day),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  )),
-                ],
+                    )),
+                  ],
+                ),
               ),
               // Scrollable content
               Expanded(
@@ -230,7 +312,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
                           children: List.generate(endHour - startHour, (index) {
                             final hour = startHour + index;
                             return Container(
-                              height: 32,
+                              height: _cellHeight,
                               decoration: BoxDecoration(
                                 border: Border.all(color: const Color(0xFF1a4966)),
                               ),
@@ -254,12 +336,19 @@ class _WeekCalendarState extends State<WeekCalendar> {
                             event.date.day == day.day
                         ).toList();
 
+                        final isPastDay = day.isBefore(today);
+
                         return Expanded(
                           child: DragTarget<EventInstance>(
                             onWillAccept: (data) => widget.isEditable && widget.allowDragDrop,
-                            onAccept: (eventInstance) {
-                              final hour = ((MediaQuery.of(context).size.height - 60) / 2 / 60).floor() + startHour;
-                              widget.onEventMoved?.call(eventInstance, day, hour);
+                            onAcceptWithDetails: (details) {
+                              final eventInstance = details.data;
+                              _handleEventMoved(
+                                context,
+                                eventInstance,
+                                day,
+                                details.offset.dy,
+                              );
                             },
                             builder: (context, candidateData, rejectedData) {
                               return Stack(
@@ -270,15 +359,16 @@ class _WeekCalendarState extends State<WeekCalendar> {
                                       final hour = startHour + index;
                                       return GestureDetector(
                                         onTap: () {
-                                          if (widget.isEditable) {
+                                          if (widget.isEditable && !isPastDay) {
                                             widget.onDaySelected?.call(day);
+                                            widget.onHourSelected?.call(hour);
                                           }
                                         },
                                         child: Container(
-                                          height: 32,
+                                          height: _cellHeight,
                                           decoration: BoxDecoration(
                                             border: Border.all(color: const Color(0xFF1a4966)),
-                                            color: day.isBefore(DateTime.now()) && !widget.isEditable
+                                            color: isPastDay && !widget.isEditable
                                                 ? Colors.grey.withOpacity(0.1)
                                                 : null,
                                           ),
@@ -288,19 +378,37 @@ class _WeekCalendarState extends State<WeekCalendar> {
                                   ),
                                   // Events
                                   ...dayEvents.map((event) {
-                                    final top = (event.startHour - startHour) * 60.0;
-                                    final height = (event.endHour - event.startHour) * 60.0;
+                                    final top = (event.startHour - startHour) * _cellHeight;
+                                    final height = (event.endHour - event.startHour) * _cellHeight;
 
+                                    final eventWidget = GestureDetector(
+                                      onTap: () => widget.onEventTapped?.call(event),
+                                      child: _buildEventCard(event),
+                                    );
+
+                                    // For past events or when editing is disabled, return non-draggable event
+                                    if (isPastDay || !widget.isEditable || !widget.allowDragDrop) {
+                                      return Positioned(
+                                        top: top,
+                                        left: 2,
+                                        right: 2,
+                                        child: eventWidget,
+                                      );
+                                    }
+
+                                    // For draggable events
                                     return Positioned(
                                       top: top,
                                       left: 2,
                                       right: 2,
-                                      child: widget.allowDragDrop && widget.isEditable
-                                          ? Draggable<EventInstance>(
+                                      child: Draggable<EventInstance>(
                                         data: event,
                                         feedback: Material(
                                           elevation: 4,
-                                          child: _buildEventCard(event, height),
+                                          child: SizedBox(
+                                            width: MediaQuery.of(context).size.width / 8,
+                                            child: _buildEventCard(event),
+                                          ),
                                         ),
                                         childWhenDragging: Container(
                                           height: height,
@@ -311,11 +419,7 @@ class _WeekCalendarState extends State<WeekCalendar> {
                                             borderRadius: BorderRadius.circular(4),
                                           ),
                                         ),
-                                        child: _buildEventCard(event, height),
-                                      )
-                                          : GestureDetector(
-                                        onTap: () => widget.onEventTapped?.call(event),
-                                        child: _buildEventCard(event, height),
+                                        child: eventWidget,
                                       ),
                                     );
                                   }),

@@ -3,17 +3,47 @@ import '../models/person_model.dart';
 
 class SchedulingService {
   List<EventInstance> calculateSchedule(
-    List<CalendarEvent> events,
-    List<Person> people,
-    DateTime startDate,
-    DateTime endDate,
-  ) {
+      List<CalendarEvent> events,
+      List<Person> people,
+      DateTime startDate,
+      DateTime endDate,
+      {List<EventInstance>? existingInstances}
+      ) {
+    // Get current date for preserving past events
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     final instances = <EventInstance>[];
     final personHours = Map<String, int>.fromIterable(
       people,
       key: (p) => (p as Person).id,
       value: (_) => 0,
     );
+
+    // If we have existing instances, preserve past events
+    if (existingInstances != null) {
+      final pastInstances = existingInstances.where((instance) {
+        final instanceDate = DateTime(
+          instance.date.year,
+          instance.date.month,
+          instance.date.day,
+        );
+        return instanceDate.isBefore(today);
+      }).toList();
+
+      instances.addAll(pastInstances);
+
+      // Update person hours based on past outreach events
+      for (var instance in pastInstances) {
+        final event = events.firstWhere((e) => e.id == instance.eventId);
+        if (event.type == EventType.outreach) {
+          final hours = instance.endHour - instance.startHour;
+          for (var personId in instance.assignedPeople) {
+            personHours[personId] = (personHours[personId] ?? 0) + hours;
+          }
+        }
+      }
+    }
 
     // Sort events by priority
     final sortedEvents = _sortEventsByPriority(events);
@@ -23,7 +53,8 @@ class SchedulingService {
       if (event.isRecurrent) {
         _scheduleRecurringEvent(
           event,
-          startDate,
+          // Start from today for new scheduling
+          today.isAfter(startDate) ? today : startDate,
           endDate,
           instances,
           people,
@@ -32,7 +63,8 @@ class SchedulingService {
       } else {
         _scheduleOneTimeEvent(
           event,
-          startDate,
+          // Start from today for new scheduling
+          today.isAfter(startDate) ? today : startDate,
           endDate,
           instances,
           people,
@@ -52,7 +84,7 @@ class SchedulingService {
         EventType.event: 1,
         EventType.outreach: 2,
       };
-      
+
       final typeComparison = typeOrder[a.type]!.compareTo(typeOrder[b.type]!);
       if (typeComparison != 0) return typeComparison;
 
@@ -65,10 +97,10 @@ class SchedulingService {
 
   int _calculateConstraints(CalendarEvent event) {
     var score = 0;
-    
+
     // More attendees = more constraints
     score += event.attendees.length * 2;
-    
+
     // Recurring events have more constraints
     if (event.isRecurrent) {
       score += 5;
@@ -88,13 +120,13 @@ class SchedulingService {
   }
 
   void _scheduleRecurringEvent(
-    CalendarEvent event,
-    DateTime startDate,
-    DateTime endDate,
-    List<EventInstance> instances,
-    List<Person> people,
-    Map<String, int> personHours,
-  ) {
+      CalendarEvent event,
+      DateTime startDate,
+      DateTime endDate,
+      List<EventInstance> instances,
+      List<Person> people,
+      Map<String, int> personHours,
+      ) {
     final frequency = Duration(days: event.frequencyDays!);
     var currentDate = startDate;
     var count = 0;
@@ -111,12 +143,12 @@ class SchedulingService {
       if (instance != null) {
         instances.add(instance);
         count++;
-        
+
         // Update person hours for outreach events
         if (event.type == EventType.outreach) {
+          final hours = instance.endHour - instance.startHour;
           for (var personId in instance.assignedPeople) {
-            personHours[personId] = 
-                personHours[personId]! + (instance.endHour - instance.startHour);
+            personHours[personId] = (personHours[personId] ?? 0) + hours;
           }
         }
       }
@@ -126,16 +158,23 @@ class SchedulingService {
   }
 
   void _scheduleOneTimeEvent(
-    CalendarEvent event,
-    DateTime startDate,
-    DateTime endDate,
-    List<EventInstance> instances,
-    List<Person> people,
-    Map<String, int> personHours,
-  ) {
-    for (var slot in event.possibleTimeSlots) {
-      if (slot.date.isBefore(startDate) || slot.date.isAfter(endDate)) continue;
+      CalendarEvent event,
+      DateTime startDate,
+      DateTime endDate,
+      List<EventInstance> instances,
+      List<Person> people,
+      Map<String, int> personHours,
+      ) {
+    // Filter time slots within the date range
+    final validSlots = event.possibleTimeSlots.where((slot) {
+      final slotDate = DateTime(slot.date.year, slot.date.month, slot.date.day);
+      return !slotDate.isBefore(startDate) && !slotDate.isAfter(endDate);
+    }).toList();
 
+    // Sort slots by date
+    validSlots.sort((a, b) => a.date.compareTo(b.date));
+
+    for (var slot in validSlots) {
       final instance = _findBestTimeSlot(
         event,
         slot.date,
@@ -146,12 +185,12 @@ class SchedulingService {
 
       if (instance != null) {
         instances.add(instance);
-        
+
         // Update person hours for outreach events
         if (event.type == EventType.outreach) {
+          final hours = instance.endHour - instance.startHour;
           for (var personId in instance.assignedPeople) {
-            personHours[personId] = 
-                personHours[personId]! + (instance.endHour - instance.startHour);
+            personHours[personId] = (personHours[personId] ?? 0) + hours;
           }
         }
         break;
@@ -160,18 +199,18 @@ class SchedulingService {
   }
 
   EventInstance? _findBestTimeSlot(
-    CalendarEvent event,
-    DateTime date,
-    List<EventInstance> existingInstances,
-    List<Person> people,
-    Map<String, int> personHours,
-  ) {
+      CalendarEvent event,
+      DateTime date,
+      List<EventInstance> existingInstances,
+      List<Person> people,
+      Map<String, int> personHours,
+      ) {
     // Get all possible slots for this date
     final possibleSlots = event.possibleTimeSlots
-        .where((slot) => 
-            slot.date.year == date.year &&
-            slot.date.month == date.month &&
-            slot.date.day == date.day)
+        .where((slot) =>
+    slot.date.year == date.year &&
+        slot.date.month == date.month &&
+        slot.date.day == date.day)
         .toList();
 
     if (possibleSlots.isEmpty) return null;
@@ -252,64 +291,64 @@ class SchedulingService {
   }
 
   bool _hasTimeConflict(
-    DateTime date,
-    int startHour,
-    int endHour,
-    List<EventInstance> instances,
-  ) {
+      DateTime date,
+      int startHour,
+      int endHour,
+      List<EventInstance> instances,
+      ) {
     return instances.any((instance) =>
-        instance.date.year == date.year &&
+    instance.date.year == date.year &&
         instance.date.month == date.month &&
         instance.date.day == date.day &&
         ((instance.startHour >= startHour && instance.startHour < endHour) ||
-         (instance.endHour > startHour && instance.endHour <= endHour)));
+            (instance.endHour > startHour && instance.endHour <= endHour)));
   }
 
   List<String> _findAvailablePeople(
-    CalendarEvent event,
-    DateTime date,
-    int startHour,
-    int endHour,
-    List<EventInstance> instances,
-    List<Person> people,
-  ) {
+      CalendarEvent event,
+      DateTime date,
+      int startHour,
+      int endHour,
+      List<EventInstance> instances,
+      List<Person> people,
+      ) {
     return people
         .where((person) =>
-            event.attendees.contains(person.id) &&
-            person.isAvailable(date, startHour, endHour) &&
-            !_hasPersonConflict(
-              person.id,
-              date,
-              startHour,
-              endHour,
-              instances,
-            ))
+    event.attendees.contains(person.id) &&
+        person.isAvailable(date, startHour, endHour) &&
+        !_hasPersonConflict(
+          person.id,
+          date,
+          startHour,
+          endHour,
+          instances,
+        ))
         .map((person) => person.id)
         .toList();
   }
 
   bool _hasPersonConflict(
-    String personId,
-    DateTime date,
-    int startHour,
-    int endHour,
-    List<EventInstance> instances,
-  ) {
+      String personId,
+      DateTime date,
+      int startHour,
+      int endHour,
+      List<EventInstance> instances,
+      ) {
     return instances.any((instance) =>
-        instance.date.year == date.year &&
+    instance.date.year == date.year &&
         instance.date.month == date.month &&
         instance.date.day == date.day &&
         instance.assignedPeople.contains(personId) &&
         ((instance.startHour >= startHour && instance.startHour < endHour) ||
-         (instance.endHour > startHour && instance.endHour <= endHour)));
+            (instance.endHour > startHour && instance.endHour <= endHour)));
   }
 
   double _scoreTimeSlot(
-    TimeSlot slot,
-    List<String> availablePeople,
-    CalendarEvent event,
-    Map<String, int> personHours,
-  ) {
+      TimeSlot slot,
+      List<String> availablePeople,
+      CalendarEvent event,
+      Map<String, int> personHours,
+      ) {
     var score = 100.0;
 
     // Prefer slots with more available people
@@ -320,9 +359,9 @@ class SchedulingService {
 
     // For outreach events, consider workload balance
     if (event.type == EventType.outreach) {
-      final avgHours = personHours.values.reduce((a, b) => a + b) / 
-                      personHours.length;
-      
+      final avgHours = personHours.values.reduce((a, b) => a + b) /
+          personHours.length;
+
       // Calculate standard deviation of hours
       final variance = personHours.values
           .map((hours) => (hours - avgHours) * (hours - avgHours))
@@ -337,15 +376,15 @@ class SchedulingService {
   }
 
   List<String> _selectBestPeople(
-    CalendarEvent event,
-    TimeSlot slot,
-    List<String> availablePeople,
-    Map<String, int> personHours,
-  ) {
+      CalendarEvent event,
+      TimeSlot slot,
+      List<String> availablePeople,
+      Map<String, int> personHours,
+      ) {
     if (event.type == EventType.outreach) {
       // Sort by hours worked (ascending)
-      availablePeople.sort((a, b) => 
-          personHours[a]!.compareTo(personHours[b]!));
+      availablePeople.sort((a, b) =>
+          (personHours[a] ?? 0).compareTo(personHours[b] ?? 0));
 
       // Select minimum required people with lowest hours
       return availablePeople

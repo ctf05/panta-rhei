@@ -125,7 +125,11 @@ class FirebaseService {
   }
 
   // Calendar Operations
-  Future<void> autoCalculateCalendar(DateTime startDate, DateTime endDate) async {
+  Future<void> autoCalculateCalendar(
+      DateTime startDate,
+      DateTime endDate,
+      {List<EventInstance>? existingInstances}
+      ) async {
     // Get all events and people
     final eventsSnapshot = await _eventsRef.get();
     final peopleSnapshot = await _peopleRef.get();
@@ -138,19 +142,39 @@ class FirebaseService {
         .map((doc) => Person.fromJson(doc.data() as Map<String, dynamic>))
         .toList();
 
-    // Clear existing instances in the date range
-    final existingInstances = await _instancesRef
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Get existing instances in the date range
+    final currentInstances = await _instancesRef
         .where('date', isGreaterThanOrEqualTo: startDate.toIso8601String())
         .where('date', isLessThanOrEqualTo: endDate.toIso8601String())
         .get();
 
     final batch = _firestore.batch();
-    for (var doc in existingInstances.docs) {
-      batch.delete(doc.reference);
+
+    // Delete only future instances
+    for (var doc in currentInstances.docs) {
+      final instance = EventInstance.fromJson(doc.data() as Map<String, dynamic>);
+      final instanceDate = DateTime(
+        instance.date.year,
+        instance.date.month,
+        instance.date.day,
+      );
+
+      if (!instanceDate.isBefore(today)) {
+        batch.delete(doc.reference);
+      }
     }
 
     // Calculate new schedule
-    final newInstances = _calculateSchedule(events, people, startDate, endDate);
+    final newInstances = _schedulingService.calculateSchedule(
+      events,
+      people,
+      startDate,
+      endDate,
+      existingInstances: existingInstances,
+    );
 
     // Create new instances
     for (var instance in newInstances) {
